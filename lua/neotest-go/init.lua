@@ -36,11 +36,6 @@ end
 ---@param namespaces neotest.Position[] Any namespaces the position is within
 function adapter._generate_position_id(position, namespaces)
   local prefix = {}
-  for _, namespace in ipairs(namespaces) do
-    if namespace.type ~= "file" then
-      table.insert(prefix, namespace.name)
-    end
-  end
   local name = utils.transform_test_name(position.name)
   return table.concat(vim.tbl_flatten({ position.path, prefix, name }), "::")
 end
@@ -200,7 +195,7 @@ function adapter.prepare_results(tree, lines, go_root, go_module)
       -- file level node
       if not test_result then
         results[value.id] = {
-          status = test_statuses.fail,
+          status = test_statuses.fail, -- TODO: This marks all files as failed
           output = empty_result_fname,
         }
       end
@@ -212,7 +207,8 @@ function adapter.prepare_results(tree, lines, go_root, go_module)
           short = table.concat(test_result.output, ""),
           output = fname,
         }
-        local errors = utils.get_errors_from_test(test_result, utils.get_filename_from_id(value.id))
+        local errors =
+          utils.get_errors_from_test(value, test_result, utils.get_filename_from_id(value.id))
         if errors then
           results[value.id].errors = errors
         end

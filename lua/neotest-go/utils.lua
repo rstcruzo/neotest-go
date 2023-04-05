@@ -6,6 +6,7 @@ local lib = require("neotest.lib")
 local async = require("neotest.async")
 local logger = require("neotest.logging")
 local patterns = require("neotest-go.patterns")
+local test_status = require("neotest-go.test_status")
 
 ---Get a line in a buffer, defaulting to the first if none is specified
 ---@param buf number
@@ -32,8 +33,16 @@ function utils.normalize_test_name(package, test)
   -- sub-tests are structured as 'TestMainTest/subtest_clause'
   local parts = vim.split(test, "/")
   local is_subtest = #parts > 1
+
+  local test_name = ""
+  if is_subtest then
+    test_name = parts[2]
+  else
+    test_name = parts[1]
+  end
+
   local parenttest = is_subtest and (package .. "::" .. parts[1]) or nil
-  return package .. "::" .. table.concat(parts, "::"), parenttest
+  return package .. "::" .. test_name, parenttest
 end
 
 --- Converts from a given neotest id and go_root / go_module to format
@@ -141,18 +150,26 @@ end
 
 --- Converts from test (as created by marshal_gotest_output) to error (as needed by neotest)
 ---@param test table
+---@param test_result table
 ---@param file_name string
 ---@return table?
-function utils.get_errors_from_test(test, file_name)
-  if not test.file_output[file_name] then
+function utils.get_errors_from_test(test, test_result, file_name)
+  if not test_result.file_output[file_name] then
     return nil
   end
   local errors = {}
-  for line, output in pairs(test.file_output[file_name]) do
+  for line, output in pairs(test_result.file_output[file_name]) do
     if utils.is_error(output) then
       table.insert(errors, { line = line - 1, message = table.concat(output, "") })
     end
   end
+
+  local no_specific_errors = next(errors) == nil
+  if test_result.status == test_status.fail and no_specific_errors then
+    -- default to generic message
+    table.insert(errors, { line = test.range[1], message = "test failed" })
+  end
+
   return errors
 end
 
